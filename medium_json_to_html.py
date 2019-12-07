@@ -6,20 +6,10 @@ from dataclasses import dataclass
 from typing import Optional
 
 
-
-TEST={'name': 'b62a', 'type': 6, 'text': 'CPO: “Well, Mr.Cleese (the CFO) didn’t show to the board meeting last week, but we did find a newt in his office. So naturally we assumed a witch turned him into a newt. We voted to find and remove all witches in the company immediately, and be data-driven about it. So we figure, witches burn and so does wood, right? And of course wood floats, and ducks also float. So if the data says we have any employees that weigh as much as a duck, they are witches!”\nYou: (facepalms)', 'markups': [{'type': 1, 'start': 0, 'end': 4}, {'type': 1, 'start': 459, 'end': 463}, {'type': 2, 'start': 0, 'end': 4}, {'type': 2, 'start': 459, 'end': 463}]}
-
 @dataclass
 class Markup:
     name:str
     tag:str
-
-MARKUP=[
-    "no Markup 0",
-    Markup("bold","b"),
-    Markup("italic","i"),
-    Markup("hyperlink","a")
-]
 
 @dataclass
 class Container:
@@ -27,107 +17,125 @@ class Container:
     tag:str
     parent_tag:Optional[str]=None
 
-CONTAINERS=[
-    "No Container 0",
-    Container("paragraph","p"),
-    "No Container 2",
-    Container("heading3","h3"),
-    Container("figure caption", "figcaption"),
-    "No Container 5",
-    Container("block quote", "blockquote"),
-    "No Container 7",
-    "No Container 8",
-    Container("bullet list","li","ul"),
-    Container("numbered list","li","ol"),
-    Container("figure caption","figcaption") ## 11 is for video, 4 for images?
-]
-   
-def fetch_json(url):
-    body=json.loads(requests.get(f"{url}?format=json").text[16:])
-    paragraphs=body['payload']['value']['content']['bodyModel']['paragraphs']
-    text=str()
-    for i,p in enumerate(paragraphs):
-        if p['type'] in (9,10,) and paragraphs[i-1]['type'] not in (9,10,):
-            text+='<'+CONTAINERS[p['type']].parent_tag+'>'
-        if p['type'] == 4:
-            text+=f"<image src='https://miro.medium.com/max/3200/{p['metadata']['id']}' />"
-        if p['type'] == 11:
-            text+=f"<image src='{unquote(p['iframe']['thumbnailUrl'])}'/>"
-
-        text+=wrap_paragraph(p,   
-                        insert_tags(
-                            shift_tags(
-                                build_unindexed_tags(p['markups'])
-                            ),p['text'])
-                        )
-        if p['type'] in (9,10,) and paragraphs[i+1]['type'] not in (9,10,):
-            text+='</'+CONTAINERS[p['type']].parent_tag+'>'
-    print(text)
-        
-
-def wrap_paragraph(paragraph,innerHTML):
-    body=f"<{CONTAINERS[paragraph['type']].tag}>"+\
-         innerHTML+\
-         f"</{CONTAINERS[paragraph['type']].tag}>"
-    return body
-
-    
 @dataclass
 class Tag:
     text:str
     index:int
     shifted:int=0
 
-def shift_index(a,b):
-    b.shifted = a.shifted + len(a.text)
-    b.index += b.shifted
+class MediumJsonToHtml:
 
-def is_nested(a,b):
-    return (a['start'] >= b['start'] and a['end'] <= b['end'])
-    
-
-def build_unindexed_tags(markups):
-    tags=[]   
-    for a in markups:
-        for b in markups:
-            if a != b and (((a['start'],a['end'],) != (b['start'],b['end'],)) or (a['type'] > b['type'])):
-                #print(str(a)+'=>'+str(b))
-                if is_nested(a,b):
-
-                    
-
-
-                    tags +=  [
-                    Tag(f"<{MARKUP[b['type']].tag}>",b['start']),
-                    Tag(f"<{MARKUP[a['type']].tag}>",a['start']),
+    MARKUP=[
+        "no Markup 0",
+        Markup("bold","b"),
+        Markup("italic","i"),
+        Markup("hyperlink","a")
+    ]
 
 
 
+    CONTAINERS=[
+        "No Container 0",
+        Container("paragraph","p"),
+        "No Container 2",
+        Container("heading3","h3"),
+        Container("figure caption for image", "figcaption"),
+        "No Container 5",
+        Container("block quote", "blockquote"),
+        "No Container 7",
+        "No Container 8",
+        Container("bullet list","li","ul"),
+        Container("numbered list","li","ol"),
+        Container("figure caption for video","figcaption") 
+    ]
+   
+    def convert_url(self,url):
+        body=json.loads(requests.get(f"{url}?format=json").text[16:])
+        paragraphs=body['payload']['value']['content']['bodyModel']['paragraphs']
+        text=str()
+        for i,p in enumerate(paragraphs):
+            if p['type'] in (9,10,) and paragraphs[i-1]['type'] not in (9,10,):
+                text+='<'+self.CONTAINERS[p['type']].parent_tag+'>'
+            if p['type'] == 4:
+                text+=f"<image src='https://miro.medium.com/max/3200/{p['metadata']['id']}' />"
+            if p['type'] == 11:
+                text+=f"<image src='{unquote(p['iframe']['thumbnailUrl'])}'/>"
 
-                    Tag(f"</{MARKUP[a['type']].tag}>",a['end']),
-                    Tag(f"</{MARKUP[b['type']].tag}>",b['end'])
-                ]
-    return tags   
+            text+=self._wrap_paragraph(p,   
+                            self._insert_tags(
+                                self._shift_tags(
+                                    self._build_unindexed_tags(p['markups'])
+                                ),p['text'])
+                            )
+            if p['type'] in (9,10,) and paragraphs[i+1]['type'] not in (9,10,):
+                text+='</'+self.CONTAINERS[p['type']].parent_tag+'>'
+        ## wrap meta 
+        payload=body['payload']['value']
 
-def shift_tags(tags):
-    for i,t in enumerate(tags):
-        if i+1 < len(tags):
-            shift_index(t,tags[i+1])
-    return tags
+        metas=[]
+        for value in ('id','title','webCanonicalUrl','latestPublishedAt','creatorId',):
+            metas.append(f"<meta name='{value}' content='{payload[value]}'/>")
+        
+        final=f"<!doctype html>\n<html><head><title>{payload['title']}</title>\n"
+        final+= '\n'.join(metas)
+        final+="</head>\n<body>\n"
+        final+=text
+        final+=f"\n</body>\n</html>"
 
-def insert_tags(tags,text):
-    for tag in tags:
-        text = insert_tag(tag,text)
-    return text 
+        return final
+            
 
-def insert_tag(tag,text):
-    pre=text[:tag.index]
-    post=text[tag.index:]
-    return pre+tag.text+post   
+    def _wrap_paragraph(self,paragraph,innerHTML):
+        body=f"<{self.CONTAINERS[paragraph['type']].tag}>"+\
+             innerHTML+\
+             f"</{self.CONTAINERS[paragraph['type']].tag}>"
+        return body
+
+        
+
+
+    def _shift_index(self,a,b):
+        b.shifted = a.shifted + len(a.text)
+        b.index += b.shifted
+
+    def _is_nested(self,a,b):
+        return (a['start'] >= b['start'] and a['end'] <= b['end'])
+        
+
+    def _build_unindexed_tags(self,markups):
+        tags=[]   
+        for a in markups:
+            for b in markups:
+                if a != b and (((a['start'],a['end'],) != (b['start'],b['end'],)) or (a['type'] > b['type'])):
+                    #print(str(a)+'=>'+str(b))
+                    if self._is_nested(a,b):
+                        tags +=  [
+                        Tag(f"<{self.MARKUP[b['type']].tag}>",b['start']),
+                        Tag(f"<{self.MARKUP[a['type']].tag}>",a['start']),
+                        Tag(f"</{self.MARKUP[a['type']].tag}>",a['end']),
+                        Tag(f"</{self.MARKUP[b['type']].tag}>",b['end'])
+                    ]
+        return tags   
+
+    def _shift_tags(self,tags):
+        for i,t in enumerate(tags):
+            if i+1 < len(tags):
+                self._shift_index(t,tags[i+1])
+        return tags
+
+    def _insert_tags(self,tags,text):
+        for tag in tags:
+            text = self._insert_tag(tag,text)
+        return text 
+
+    def _insert_tag(self,tag,text):
+        pre=text[:tag.index]
+        post=text[tag.index:]
+        return pre+tag.text+post   
 
    
-if __name__ == "__main__":
-    fetch_json('https://towardsdatascience.com/is-your-company-too-dumb-to-be-data-driven-696932d597c3')
+
+
 
 
         
