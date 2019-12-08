@@ -1,9 +1,10 @@
+import xml.etree.ElementTree as ElementTree
 from urllib.parse import unquote
 from functools import reduce
 import json
 import requests
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional,Union,List
 
 
 @dataclass
@@ -23,7 +24,9 @@ class Tag:
     index:int
     shifted:int=0
 
-class MediumJsonToHtml:
+class MediumMuncher:
+    RECORDED_ATTRIBUTES=('id','title','webCanonicalUrl','latestPublishedAt','creatorId',)
+
 
     MARKUP=[
         "no Markup 0",
@@ -49,7 +52,7 @@ class MediumJsonToHtml:
         Container("figure caption for video","figcaption") 
     ]
    
-    def convert_url(self,url):
+    def munch_story(self,url:str,snippet:str=False,verbose:str=False)->Union[str,tuple]:
         body=json.loads(requests.get(f"{url}?format=json").text[16:])
         paragraphs=body['payload']['value']['content']['bodyModel']['paragraphs']
         text=str()
@@ -69,30 +72,43 @@ class MediumJsonToHtml:
                             )
             if p['type'] in (9,10,) and paragraphs[i+1]['type'] not in (9,10,):
                 text+='</'+self.CONTAINERS[p['type']].parent_tag+'>'
-        ## wrap meta 
-        payload=body['payload']['value']
 
-        metas=[]
-        for value in ('id','title','webCanonicalUrl','latestPublishedAt','creatorId',):
-            metas.append(f"<meta name='{value}' content='{payload[value]}'/>")
+        ## meta 
+        attributes=dict()
+        for attribute in self.RECORDED_ATTRIBUTES:
+            attributes[attribute]=payload=body['payload']['value'][attribute]
         
-        final=f"<!doctype html>\n<html><head><title>{payload['title']}</title>\n"
-        final+= '\n'.join(metas)
-        final+="</head>\n<body>\n"
-        final+=text
-        final+=f"\n</body>\n</html>"
-
-        return final
+        final_html=text
+        if not snippet:
+            meta_tags=[]
+            for key,value in attributes:
+                metas.append(f"<meta name='{key}' content='{value}'/>")
             
+            final_html=f"<!doctype html>\n<html><head><title>{attributes['title']}</title>\n"
+            final_html+= '\n'.join(metas)
+            final_html+="</head>\n<body>\n"
+            final_html+=text
+            final_html+=f"\n</body>\n</html>"
+
+        if verbose:
+            return final_html,attributes
+        else:
+            return final_html
+            
+
+    def munch_author_feed(self,author:str)->List[str]:
+        tree = ElementTree.fromstring(requests.get(f'https://medium.com/feed/@{author}').text)
+        channel=list(tree)[0]
+        urls=list()
+        for item in channel.findall('item'):
+            urls.append(item.find('link').text)
+        return urls      
 
     def _wrap_paragraph(self,paragraph,innerHTML):
         body=f"<{self.CONTAINERS[paragraph['type']].tag}>"+\
              innerHTML+\
              f"</{self.CONTAINERS[paragraph['type']].tag}>"
         return body
-
-        
-
 
     def _shift_index(self,a,b):
         b.shifted = a.shifted + len(a.text)
@@ -133,9 +149,9 @@ class MediumJsonToHtml:
         post=text[tag.index:]
         return pre+tag.text+post   
 
-   
-
-
+if __name__ == "__main__":
+    m=MediumMuncher()
+    m.munch_author_feed('ethan.m.knox')        
 
 
         
