@@ -1,28 +1,20 @@
-from setuptools import setup, find_packages
+from setuptools import setup 
 import os
 
 args=dict()
-with open('./README.md', 'r') as f:
-    args['long_description'] = f.read()
-
-
-reqs = []
-with open("requirements.txt") as file:
-    for line in file:
-        # remove linebreak which is the last character of the string
-        currentReq = line[:-1]
-        reqs.append(currentReq)
-
-args['install_requires']=reqs
-#args['classifiers']=["License :: OSI Approved :: MIT License",
-#        "Programming Language :: Python :: 3.7",],
-args['description-content-type']='text/markdown'
-args['packages']=find_packages()
-args['name'] = "mediumToHTML"
-args['version']='0.0.01'
-args['summary']='converts Medium articles to simple HTML'
-args['keywords']='Medium'
-args['author']='Ethan Knox'
-args['author-email']='ethan.m.knox@gmail.com'
+with open("README.md","r",encoding='utf-8') as f:
+    args["long_description"] = f.read()
+args['long_description_content_type']='text/markdown'
+args["install_requires"]=["requests==2.22.0"]
+args["home_page"]="https://github.com/norton120/mediumMuncher"
+args["packages"]=["medium_muncher"]
+args["name"] = "mediumMuncher"
+args["version"]="0.0.01"
+args["summary"]="Converts medium stories and author feeds into plain HTML."
+args["keywords"]="Medium"
+args["author"]="Ethan Knox"
+args["author-email"]="ethan.m.knox@gmail.com"
+args["license"]="MIT"
+python_requires=">=3.7"
 
 setup(**args)

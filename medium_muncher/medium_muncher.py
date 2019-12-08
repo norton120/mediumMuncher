@@ -170,13 +170,7 @@ class MediumMuncher:
         post=text[tag.index:]
         return pre+tag.text+post   
 
-if __name__ == "__main__":
-    m=MediumMuncher()
-    print(
 
-m.munch_story('https://towardsdatascience.com/is-your-company-too-dumb-to-be-data-driven-696932d597c3?')        
-
-)
         
 
 
