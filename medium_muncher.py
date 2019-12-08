@@ -53,6 +53,8 @@ class MediumMuncher:
     ]
    
     def munch_story(self,url:str,snippet:str=False,verbose:str=False)->Union[str,tuple]:
+        ## make sure there's not already get params
+        url=url.split("?")[0]
         body=json.loads(requests.get(f"{url}?format=json").text[16:])
         paragraphs=body['payload']['value']['content']['bodyModel']['paragraphs']
         text=str()
@@ -81,11 +83,11 @@ class MediumMuncher:
         final_html=text
         if not snippet:
             meta_tags=[]
-            for key,value in attributes:
-                metas.append(f"<meta name='{key}' content='{value}'/>")
+            for key,value in attributes.items():
+                meta_tags.append(f"<meta name='{key}' content='{value}'/>")
             
             final_html=f"<!doctype html>\n<html><head><title>{attributes['title']}</title>\n"
-            final_html+= '\n'.join(metas)
+            final_html+= '\n'.join(meta_tags)
             final_html+="</head>\n<body>\n"
             final_html+=text
             final_html+=f"\n</body>\n</html>"
@@ -101,7 +103,9 @@ class MediumMuncher:
         channel=list(tree)[0]
         urls=list()
         for item in channel.findall('item'):
-            urls.append(item.find('link').text)
+            raw_link_text=item.find('link').text
+            link=raw_link_text.split('?')[0]
+            urls.append(link)
         return urls      
 
     def _wrap_paragraph(self,paragraph,innerHTML):
@@ -119,19 +123,36 @@ class MediumMuncher:
         
 
     def _build_unindexed_tags(self,markups):
-        tags=[]   
+        tags=[] 
+        if len(markups) ==1:
+            tags=[ 
+                Tag(self._construct_tag_text(markups[0]),markups[0]['start']),
+                Tag(f"</{self.MARKUP[markups[0]['type']].tag}>",markups[0]['end'])]
+            return tags
+
         for a in markups:
             for b in markups:
                 if a != b and (((a['start'],a['end'],) != (b['start'],b['end'],)) or (a['type'] > b['type'])):
-                    #print(str(a)+'=>'+str(b))
                     if self._is_nested(a,b):
                         tags +=  [
-                        Tag(f"<{self.MARKUP[b['type']].tag}>",b['start']),
-                        Tag(f"<{self.MARKUP[a['type']].tag}>",a['start']),
+                        Tag(self._construct_tag_text(b),b['start']),
+                        Tag(self._construct_tag_text(a),a['start']),
                         Tag(f"</{self.MARKUP[a['type']].tag}>",a['end']),
                         Tag(f"</{self.MARKUP[b['type']].tag}>",b['end'])
-                    ]
+                        ]
+                    else:
+                        open_tag=Tag(self._construct_tag_text(a),a['start'])
+                        close_tag=Tag(f"</{self.MARKUP[a['type']].tag}>",a['end'])
+                        if open_tag not in tags:
+                            tags.append(open_tag)
+                            tags.append(close_tag)
         return tags   
+
+    def _construct_tag_text(self,markup:dict)->str:
+        if markup['type'] == 3:
+            return f"<{self.MARKUP[markup['type']].tag} href='{markup['href']}'>"
+        else:
+            return f"<{self.MARKUP[markup['type']].tag}>"
 
     def _shift_tags(self,tags):
         for i,t in enumerate(tags):
@@ -151,9 +172,11 @@ class MediumMuncher:
 
 if __name__ == "__main__":
     m=MediumMuncher()
-    m.munch_author_feed('ethan.m.knox')        
+    print(
 
+m.munch_story('https://towardsdatascience.com/is-your-company-too-dumb-to-be-data-driven-696932d597c3?')        
 
+)
         
 
 
