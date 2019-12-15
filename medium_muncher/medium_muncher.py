@@ -2,6 +2,7 @@ import xml.etree.ElementTree as ElementTree
 from urllib.parse import unquote
 from functools import reduce
 import json
+from datetime import datetime
 import requests
 from dataclasses import dataclass
 from typing import Optional,Union,List
@@ -32,7 +33,14 @@ class MediumMuncher:
         "no Markup 0",
         Markup("bold","b"),
         Markup("italic","i"),
-        Markup("hyperlink","a")
+        Markup("hyperlink","a"),
+        "No Markup 4",
+        "No Markup 5",
+        "No Markup 6",
+        "No Markup 7",
+        "No Markup 8",
+        "No Markup 9",
+        Markup("code","code")
     ]
 
 
@@ -45,11 +53,13 @@ class MediumMuncher:
         Container("figure caption for image", "figcaption"),
         "No Container 5",
         Container("block quote", "blockquote"),
-        "No Container 7",
-        "No Container 8",
+        Container("stand alone big quote","h5"),
+        Container("block code", "pre"),
         Container("bullet list","li","ul"),
         Container("numbered list","li","ol"),
-        Container("figure caption for video","figcaption") 
+        Container("figure caption for video","figcaption"),
+        "No Container 12",
+        Container("heading2","h2")
     ]
    
     def munch_story(self,url:str,snippet:str=False,verbose:str=False)->Union[str,tuple]:
@@ -65,13 +75,16 @@ class MediumMuncher:
                 text+=f"<image src='https://miro.medium.com/max/3200/{p['metadata']['id']}' />"
             if p['type'] == 11:
                 text+=f"<image src='{unquote(p['iframe']['thumbnailUrl'])}'/>"
-
-            text+=self._wrap_paragraph(p,   
-                            self._insert_tags(
-                                self._shift_tags(
-                                    self._build_unindexed_tags(p['markups'])
-                                ),p['text'])
-                            )
+            try:
+                text+=self._wrap_paragraph(p,   
+                                self._insert_tags(
+                                    self._shift_tags(
+                                        self._build_unindexed_tags(p['markups'])
+                                    ),p['text'])
+                                )
+            except Exception as e:
+                print(p)
+                raise e
             if p['type'] in (9,10,) and paragraphs[i+1]['type'] not in (9,10,):
                 text+='</'+self.CONTAINERS[p['type']].parent_tag+'>'
 
@@ -79,11 +92,14 @@ class MediumMuncher:
         attributes=dict()
         for attribute in self.RECORDED_ATTRIBUTES:
             attributes[attribute]=payload=body['payload']['value'][attribute]
+        attributes['latestPublishedAt']=datetime.fromtimestamp(
+                        int(str(attributes['latestPublishedAt'])[:10]))
         
         final_html=text
         if not snippet:
             meta_tags=[]
             for key,value in attributes.items():
+                value = value.isoformat() if key=='latestPublishedAt' else value
                 meta_tags.append(f"<meta name='{key}' content='{value}'/>")
             
             final_html=f"<!doctype html>\n<html><head><title>{attributes['title']}</title>\n"
@@ -169,9 +185,4 @@ class MediumMuncher:
         pre=text[:tag.index]
         post=text[tag.index:]
         return pre+tag.text+post   
-
-
-        
-
-
 

@@ -15,7 +15,7 @@ pip3 install mediummuncher
 Getting a story as stand-alone HTML (with head and body tags)
 
 ```
-from mediummuncher import MediumMuncher
+from medium_muncher import MediumMuncher
 
 muncher = MediumMuncher()
 full_html=muncher.munch_story('https://medium.com/some-author/some-amazing-article-039525')
